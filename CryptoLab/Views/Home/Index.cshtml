@@ -5,31 +5,35 @@
 <div class="container">
     <div class="row">&nbsp;</div>
     <div class="row">
-        <div class="col-3">&nbsp;</div>
-        <div class="col-9">
-            To user.......<input type="text" id="userInput" />
-            <br />
-            Message...<input type="text" id="messageInput" />
-            <input type="button" id="sendButton" value="Send Message" />
-        </div>
-    </div>
-    <div class="row">
         <div class="col-12">
             <hr />
         </div>
     </div>
     <div class="row">
-        <div class="col-6">
-            <ul id="usersList" class="list-group" role="tablist"></ul>
+        <div class="col-4">
+            <div id="usersList" class="list-group" role="tablist"></div>
+
+            <button id="startConversation" type="button" class="btn btn-primary" disabled>Start conversation</button>
         </div>
 
-        <div class="col-6">
-            <ul id="messagesList"></ul>
+        <div id="conversation" class="col-8">
+            <div class="card">
+                <div class="card-body" id="messagesList">
+                    <h5 class="card-title">Conversation</h5>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <input id="messageInput" type="text" class="form-control"/>
+                <span>
+                    <button id="sendButton" type="button" class="btn btn-send">Send</button>
+                </span>
+            </div>
         </div>
     </div>
 </div>
-<script src="~/js/signalr/dist/browser/signalr.js"></script>
-<script src="~/js/jquery/jquery.js"></script>
-<script src="~/js/bootstrap/dist/js/bootstrap.js"></script>
 
-<script src="~/js/chat.js"></script>
+@section Scripts {
+    <script src="~/js/signalr/dist/browser/signalr.js"></script>
+    <script src="~/js/chat.js"></script>
+}
