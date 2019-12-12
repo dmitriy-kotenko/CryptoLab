@@ -25,12 +25,13 @@ namespace CryptoLab.Hubs
             if (existingUserConnectionIds == null)
             {
                 existingUserConnectionIds = new List<string>();
+                await Clients.Others.SendAsync("ClientConnected", userName);
             }
+
             existingUserConnectionIds.Add(Context.ConnectionId);
             ConnectedUsers.TryAdd(userName, existingUserConnectionIds);
 
             await Clients.Caller.SendAsync("UserList", ConnectedUsers.Keys);
-            await Clients.Others.SendAsync("ClientConnected", userName);
 
             await base.OnConnectedAsync();
         }
@@ -48,9 +49,9 @@ namespace CryptoLab.Hubs
                 if (existingUserConnectionIds.Count == 0)
                 {
                     ConnectedUsers.TryRemove(userName, out List<string> _);
+                    await Clients.Others.SendAsync("ClientDisconnected", userName);
                 }
             }
-            await Clients.Others.SendAsync("ClientDisconnected", userName);
 
             await base.OnDisconnectedAsync(exception);
         }

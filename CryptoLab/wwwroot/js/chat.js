@@ -4,32 +4,34 @@ var selectedUser;
 
 connection.on('ClientConnected', appendUser);
 
-connection.on('UserList', function (users) {
+connection.on('UserList', function(users) {
     users.forEach(appendUser);
 });
 
-connection.on('ClientDisconnected', function (userEmail) {
-    var userLi = document.getElementById(userEmail);
-    document.getElementById('usersList').removeChild(userLi);
+connection.on('ClientDisconnected', function(userEmail) {
+    var userItem = document.getElementById(userEmail);
+    document.getElementById('usersList').removeChild(userItem);
 });
 
-connection.on('ReceiveMessage', function (message) {
+connection.on('ReceiveMessage', function(encryptedMessage) {
+    var message = decryptMessage(encryptedMessage);
     appendMessage(selectedUser, message);
 });
 
 connection.start();
 
 $('#sendButton').click(e => {
+    e.preventDefault();
+
     var messageInput = $('#messageInput');
     var message = messageInput.val();
+    messageInput.val('');
 
-    appendMessage('You', message);
-
-    connection.invoke('SendMessage', selectedUser, message).catch(function (err) {
+    var encryptedMessage = encryptMessage(message);
+    connection.invoke('SendMessage', selectedUser, encryptedMessage).catch(function(err) {
         return console.error(err.toString());
     });
-    messageInput.val('');
-    e.preventDefault();
+    appendMessage('You', message);
 });
 
 function appendUser(userEmail) {
@@ -60,12 +62,43 @@ function onUserSelected(e) {
     document.getElementById('startConversation').disabled = false;
 }
 
+// An example 128-bit key (16 bytes * 8 bits/byte = 128 bits)
+var key = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+
+function startConversation() {
+
+}
+
+function encryptMessage(message) {
+    var messageBytes = aesjs.utils.utf8.toBytes(message);
+
+    // The counter is optional, and if omitted will begin at 1
+    var aesCtr = new aesjs.ModeOfOperation.ctr(key, new aesjs.Counter(5));
+    var encryptedMessageBytes = aesCtr.encrypt(messageBytes);
+
+    return aesjs.utils.hex.fromBytes(encryptedMessageBytes);
+}
+
+function decryptMessage(encryptedMessage) {
+    var encryptedMessageBytes = aesjs.utils.hex.toBytes(encryptedMessage);
+
+    // The counter mode of operation maintains internal state, so to
+    // decrypt a new instance must be instantiated.
+    var aesCtr = new aesjs.ModeOfOperation.ctr(key, new aesjs.Counter(5));
+    var decryptedMessageBytes = aesCtr.decrypt(encryptedMessageBytes);
+
+    return aesjs.utils.utf8.fromBytes(decryptedMessageBytes);
+}
+
 
 $('#startConversation').click(e => {
-    $('#' + e.target.id).prop("disabled", true);
+    $('#' + e.target.id).prop('disabled', true);
+
+    startConversation();
+
     $('#conversation').show();
 });
 
-$(document).ready(function () {
+$(document).ready(function() {
     $(document).on('shown.bs.tab', 'a[data-toggle="tab"]', onUserSelected);
 });

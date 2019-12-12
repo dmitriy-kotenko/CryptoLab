@@ -25,6 +25,11 @@
       "files": [
         "dist/js/bootstrap.js"
       ]
+    },
+    {
+      "provider": "cdnjs",
+      "library": "aes-js@3.1.2",
+      "destination": "wwwroot/js/aes-js/"
     }
   ]
 }
