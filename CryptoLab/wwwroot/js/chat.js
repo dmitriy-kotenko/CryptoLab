@@ -66,14 +66,13 @@ function onUserSelected(e) {
 var key = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
 function startConversation() {
-
+    //var encrypt = new JSEncrypt();
 }
 
 function encryptMessage(message) {
     var messageBytes = aesjs.utils.utf8.toBytes(message);
 
-    // The counter is optional, and if omitted will begin at 1
-    var aesCtr = new aesjs.ModeOfOperation.ctr(key, new aesjs.Counter(5));
+    var aesCtr = new aesjs.ModeOfOperation.ctr(key);
     var encryptedMessageBytes = aesCtr.encrypt(messageBytes);
 
     return aesjs.utils.hex.fromBytes(encryptedMessageBytes);
@@ -82,9 +81,7 @@ function encryptMessage(message) {
 function decryptMessage(encryptedMessage) {
     var encryptedMessageBytes = aesjs.utils.hex.toBytes(encryptedMessage);
 
-    // The counter mode of operation maintains internal state, so to
-    // decrypt a new instance must be instantiated.
-    var aesCtr = new aesjs.ModeOfOperation.ctr(key, new aesjs.Counter(5));
+    var aesCtr = new aesjs.ModeOfOperation.ctr(key);
     var decryptedMessageBytes = aesCtr.decrypt(encryptedMessageBytes);
 
     return aesjs.utils.utf8.fromBytes(decryptedMessageBytes);

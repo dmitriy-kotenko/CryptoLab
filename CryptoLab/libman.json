@@ -30,6 +30,24 @@
       "provider": "cdnjs",
       "library": "aes-js@3.1.2",
       "destination": "wwwroot/js/aes-js/"
+    },
+    {
+      "provider": "cdnjs",
+      "library": "jsencrypt@2.3.1",
+      "destination": "wwwroot/js/jsencrypt/"
+    },
+    {
+      "provider": "cdnjs",
+      "library": "cryptico@0.0.1343522940",
+      "destination": "wwwroot/js/cryptico/",
+      "files": [
+        "cryptico.min.js",
+        "cryptico.js",
+        "rsa.min.js",
+        "rsa.js",
+        "jsbn.min.js",
+        "jsbn.js"
+      ]
     }
   ]
 }
