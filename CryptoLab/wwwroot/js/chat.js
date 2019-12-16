@@ -4,21 +4,23 @@ var selectedUser;
 
 connection.on('ClientConnected', appendUser);
 
-connection.on('UserList', function(users) {
+connection.on('UserList', function (users) {
     users.forEach(appendUser);
 });
 
-connection.on('ClientDisconnected', function(userEmail) {
+connection.on('ClientDisconnected', function (userEmail) {
     var userItem = document.getElementById(userEmail);
     document.getElementById('usersList').removeChild(userItem);
 });
 
-connection.on('ReceiveMessage', function(encryptedMessage) {
+connection.on('ReceiveMessage', function (encryptedMessage) {
     var message = decryptMessage(encryptedMessage);
     appendMessage(selectedUser, message);
 });
 
-connection.start();
+connection.start().then(function () {
+    sendPublicKey();
+});
 
 $('#sendButton').click(e => {
     e.preventDefault();
@@ -28,9 +30,7 @@ $('#sendButton').click(e => {
     messageInput.val('');
 
     var encryptedMessage = encryptMessage(message);
-    connection.invoke('SendMessage', selectedUser, encryptedMessage).catch(function(err) {
-        return console.error(err.toString());
-    });
+    connection.invoke('SendMessage', selectedUser, encryptedMessage);
     appendMessage('You', message);
 });
 
@@ -62,11 +62,13 @@ function onUserSelected(e) {
     document.getElementById('startConversation').disabled = false;
 }
 
+var serverPublicKey;
+
 // An example 128-bit key (16 bytes * 8 bits/byte = 128 bits)
 var key = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
 function startConversation() {
-    //var encrypt = new JSEncrypt();
+
 }
 
 function encryptMessage(message) {
@@ -87,6 +89,21 @@ function decryptMessage(encryptedMessage) {
     return aesjs.utils.utf8.fromBytes(decryptedMessageBytes);
 }
 
+function sendPublicKey() {
+    var clientPublicKey = localStorage.getItem('pubKey');
+    if (clientPublicKey === null) {
+        generateRSAKeyAndStore();
+        console.log('RSA key-pair generated and stored');
+
+        clientPublicKey = localStorage.getItem('pubKey');
+    }
+    console.log('clientPublicKey: ' + clientPublicKey);
+    var encryptedClientPublicKey = encryptWithRSA(serverPublicKey, clientPublicKey);
+    console.log('encryptedClientPublicKey: ' + encryptedClientPublicKey);
+
+    connection.invoke('SetClientPublicKey', encryptedClientPublicKey);
+}
+
 
 $('#startConversation').click(e => {
     $('#' + e.target.id).prop('disabled', true);
@@ -96,6 +113,10 @@ $('#startConversation').click(e => {
     $('#conversation').show();
 });
 
-$(document).ready(function() {
+$(document).ready(function () {
     $(document).on('shown.bs.tab', 'a[data-toggle="tab"]', onUserSelected);
+
+    $.get('server_2048_pub.pem', function (data) {
+        serverPublicKey = data;
+    });
 });

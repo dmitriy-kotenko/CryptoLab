@@ -1,23 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.UI;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.HttpsPolicy;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CryptoLab.Data;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using CryptoLab.Hubs;
-using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
-using System.Text;
-using Newtonsoft.Json;
+using Microsoft.Extensions.Hosting;
 
 namespace CryptoLab
 {
@@ -43,17 +33,16 @@ namespace CryptoLab
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(
                     Configuration.GetConnectionString("DefaultConnection")));
-            services.AddDefaultIdentity<IdentityUser>()
-                .AddDefaultUI(UIFramework.Bootstrap4)
+            services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
                 .AddEntityFrameworkStores<ApplicationDbContext>();
 
-            services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
+            services.AddControllersWithViews();
 
             services.AddSignalR();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             if (env.IsDevelopment())
             {
@@ -68,41 +57,28 @@ namespace CryptoLab
             }
 
             app.UseHttpsRedirection();
-            app.UseStaticFiles();
-            app.UseCookiePolicy();
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                ServeUnknownFileTypes = true
+            });
+
+            app.UseRouting();
 
             app.UseAuthentication();
+            app.UseAuthorization();
 
-            app.UseSignalR(routes =>
+            app.UseEndpoints(endpoints =>
             {
-                routes.MapHub<ChatHub>("/chatHub");
-            });
-
-            app.UseMvc(routes =>
-            {
-                routes.MapRoute(
+                endpoints.MapControllerRoute(
                     name: "default",
-                    template: "{controller=Home}/{action=Index}/{id?}");
+                    pattern: "{controller=Home}/{action=Index}/{id?}");
+                endpoints.MapRazorPages();
+                endpoints.MapHub<ChatHub>("/chatHub");
             });
 
-            // openssl req -newkey rsa:2048 -nodes -keyout key.pem -x509 -days 365 -out certificate.pem
-            // openssl pkcs12 -inkey key.pem -in certificate.pem -export -out certificate.p12
-            
-            //X509Certificate2 cert = new X509Certificate2(@"D:\certificate.pfx");
-
-            ////using (RSA rsa = cert.GetRSAPrivateKey())
-            //using (RSA rsa = RSA.Create())
-            //{
-            //    var rsaParams = rsa.ExportParameters(false);
-
-            //    var jsonParams = JsonConvert.SerializeObject(rsaParams);
-
-            //    rsa.KeySize = 2048;
-
-            //    var bytes = Encoding.UTF8.GetBytes("Hello world");
-
-            //    byte[] encryptedData = rsa.Encrypt(bytes, RSAEncryptionPadding.Pkcs1);
-            //}
+            // Server-side generation:
+            // openssl genrsa -out server_2048_rsa_priv.pem 2048 
+            // openssl rsa -pubout -in server_4096_rsa_priv.pem -out server_4096_pub.pem
         }
     }
 }

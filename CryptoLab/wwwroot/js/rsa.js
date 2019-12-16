@@ -1,4 +1,4 @@
-﻿(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 var asn1 = exports;
 
 asn1.bignum = require('bn.js');
@@ -27582,11 +27582,27 @@ module.exports.Key = (function () {
 }).call(this,require("buffer").Buffer)
 },{"../encryptEngines/encryptEngines.js":169,"../schemes/schemes.js":183,"../utils":184,"../utils.js":184,"./jsbn.js":177,"buffer":51,"crypto":60}],179:[function(require,module,exports){
 window.generateRSAKeyAndStore = function () {
-var NodeRSA = require('node-rsa');
-var key = new NodeRSA({b: 1024});
-localStorage.setItem("prvKey", key.exportKey("pkcs8-private"));
-localStorage.setItem("pubKey", key.exportKey("public"));
-return key;
+	var NodeRSA = require('node-rsa');
+	var key = new NodeRSA({b: 512});
+	localStorage.setItem("prvKey", key.exportKey("pkcs8-private"));
+	localStorage.setItem("pubKey", key.exportKey("public"));
+	return key;
+};
+
+window.encryptWithRSA = function (key, text) {
+	var NodeRSA = require('node-rsa');
+	var key = new NodeRSA(key);
+	key.setOptions({encryptionScheme: 'pkcs1'});
+	console.log(key.getMaxMessageSize());
+	return key.encrypt(text, 'base64');	
+};
+
+window.decryptWithRSA = function (key, text) {
+	var NodeRSA = require('node-rsa');
+	var key = new NodeRSA(key);
+	key.setOptions({encryptionScheme: 'pkcs1'});
+	
+	return key.decrypt(text, 'utf8');	
 };
 },{"node-rsa":168}],180:[function(require,module,exports){
 (function (Buffer){
