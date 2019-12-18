@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.IO;
 using Org.BouncyCastle.OpenSsl;
+using System.Text;
+using System.Linq;
 
 namespace CryptoLab.Hubs
 {
@@ -60,6 +62,54 @@ namespace CryptoLab.Hubs
             await base.OnDisconnectedAsync(exception);
         }
 
+        public void SetClientPublicKey(string encryptedClientPublicKey)
+        {
+            var decryptedClientPublicKeyBytes = Decrypt(encryptedClientPublicKey);
+
+            string userName = Context.User.Identity.Name;
+            _userPublicKeys[userName] = Encoding.UTF8.GetString(decryptedClientPublicKeyBytes);
+        }
+
+        public async Task<object> StartHandshake(string withUserName)
+        {
+            if (!_userPublicKeys.ContainsKey(withUserName))
+            {
+                throw new ArgumentException("User is not connected.");
+            }
+
+            var currentUserName = Context.User.Identity.Name;
+            var currentUserPublicKey = _userPublicKeys[currentUserName];
+            var withUserPublicKey = _userPublicKeys[withUserName];
+
+            IdentityUser user = await _userManager.FindByEmailAsync(withUserName);
+            byte[] currentUserEncryptedPublicKey = Encrypt(withUserPublicKey, currentUserPublicKey);
+            byte[] currentUserPublicKeySignature = Sign(currentUserEncryptedPublicKey);
+
+            await Clients.User(user.Id).SendAsync(
+                "StartHandshakeRequested",
+                Convert.ToBase64String(currentUserEncryptedPublicKey),
+                Convert.ToBase64String(currentUserPublicKeySignature));
+
+            byte[] withUserEncryptedPublicKeyBytes = Encrypt(currentUserPublicKey, withUserPublicKey);
+            byte[] withUserPublicKeySignature = Sign(withUserEncryptedPublicKeyBytes);
+            return new
+            {
+                selectedUserEncryptedPublicKey = Convert.ToBase64String(withUserEncryptedPublicKeyBytes),
+                signature = Convert.ToBase64String(withUserPublicKeySignature)
+            };
+        }
+
+        public async Task SubmitAesKey(string toUser, string encryptedAesKey)
+        {
+            var aesKeyBytes = Decrypt(encryptedAesKey);
+            var aesKey = Convert.ToBase64String(aesKeyBytes);
+
+            var signature = Sign(aesKeyBytes);
+
+            IdentityUser user = await _userManager.FindByEmailAsync(toUser);
+            await Clients.User(user.Id).SendAsync("SetAesKey", aesKey, signature);
+        }
+
         public async Task SendMessage(string toUser, string message)
         {
             IdentityUser user = await _userManager.FindByEmailAsync(toUser);
@@ -67,26 +117,81 @@ namespace CryptoLab.Hubs
             await Clients.User(user.Id).SendAsync("ReceiveMessage", message);
         }
 
-        public void SetClientPublicKey(string encryptedClientPublicKey)
+        private byte[] ExtractKeyBytes(string pemFormattedKey)
         {
-            string rsaPrivateKey = File.ReadAllText(@"server_2048_rsa_priv.pem");
+            var stringReader = new StringReader(pemFormattedKey);
+            var pemReader = new PemReader(stringReader);
+            var pem = pemReader.ReadPemObject();
 
-            var privateKeyStringReader = new StringReader(rsaPrivateKey);
-            var privateKeyPemReader = new PemReader(privateKeyStringReader);
-            var privateKeyPem = privateKeyPemReader.ReadPemObject();
+            return pem.Content;
+        }
+
+        private byte[] Encrypt(string publicKey, string text)
+        {
+            var encryptedBytes = new List<byte>();
+
+            byte[] publicKeyBytes = ExtractKeyBytes(publicKey);
 
             using (RSA rsa = RSA.Create())
             {
-                rsa.ImportRSAPrivateKey(privateKeyPem.Content, out int _);
+                rsa.ImportSubjectPublicKeyInfo(publicKeyBytes, out int _);
 
-                var encryptedDataBytes = Convert.FromBase64String(encryptedClientPublicKey);
-                var decryptedClientPublicKeyBytes = rsa.Decrypt(encryptedDataBytes, RSAEncryptionPadding.Pkcs1);
+                int chunkLength = CalculatePkcs1MaxChunkLength(rsa.KeySize);
 
-                var decryptedClientPublicKey = System.Text.Encoding.UTF8.GetString(decryptedClientPublicKeyBytes);
-
-                string userName = Context.User.Identity.Name;
-                _userPublicKeys[userName] = decryptedClientPublicKey;
+                var textChunks = SplitString(text, chunkLength);
+                foreach (var textChunk in textChunks)
+                {
+                    var textBytes = Encoding.UTF8.GetBytes(textChunk);
+                    var encryptedTextBytes = rsa.Encrypt(textBytes, RSAEncryptionPadding.Pkcs1);
+                    encryptedBytes.AddRange(encryptedTextBytes);
+                }
             }
+
+            return encryptedBytes.ToArray();
+        }
+
+        private byte[] Decrypt(string encryptedText)
+        {
+            var encryptedDataBytes = Convert.FromBase64String(encryptedText);
+
+            using (RSA rsa = RSA.Create())
+            {
+                rsa.ImportRSAPrivateKey(GetServerPrivateKey(), out int _);
+                return rsa.Decrypt(encryptedDataBytes, RSAEncryptionPadding.Pkcs1);
+            }
+        }
+
+        private byte[] Sign(byte[] data)
+        {
+            byte[] privateKeyBytes = GetServerPrivateKey();
+
+            using (RSA rsa = RSA.Create())
+            {
+                rsa.ImportRSAPrivateKey(privateKeyBytes, out int _);
+
+                return rsa.SignData(data, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            }
+        }
+
+        private byte[] GetServerPrivateKey()
+        {
+            string rsaPrivateKey = File.ReadAllText(@"server_2048_rsa_priv.pem");
+            return ExtractKeyBytes(rsaPrivateKey);
+        }
+
+        private int CalculatePkcs1MaxChunkLength(int keySize)
+        {
+            return keySize / 8 - 11;
+        }
+
+        private IEnumerable<string> SplitString(string str, int chunkSize)
+        {
+            return Enumerable.Range(0, (int)Math.Ceiling((double)str.Length / chunkSize))
+                .Select(i => str.Substring(
+                    i * chunkSize,
+                    (i * chunkSize + chunkSize <= str.Length)
+                        ? chunkSize
+                        : str.Length - i * chunkSize));
         }
     }
 }

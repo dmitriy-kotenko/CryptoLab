@@ -27593,7 +27593,7 @@ window.encryptWithRSA = function (key, text) {
 	var NodeRSA = require('node-rsa');
 	var key = new NodeRSA(key);
 	key.setOptions({encryptionScheme: 'pkcs1'});
-	console.log(key.getMaxMessageSize());
+
 	return key.encrypt(text, 'base64');	
 };
 
@@ -27602,7 +27602,15 @@ window.decryptWithRSA = function (key, text) {
 	var key = new NodeRSA(key);
 	key.setOptions({encryptionScheme: 'pkcs1'});
 	
-	return key.decrypt(text, 'utf8');	
+	return key.decrypt(text);	
+};
+
+window.verifyWithRSA = function (key, data, signature) {
+	var NodeRSA = require('node-rsa');
+	var key = new NodeRSA(key);
+	key.setOptions({signingScheme: 'pkcs1'});
+	
+	return key.verify(data, signature, 'base64', 'base64');	
 };
 },{"node-rsa":168}],180:[function(require,module,exports){
 (function (Buffer){
