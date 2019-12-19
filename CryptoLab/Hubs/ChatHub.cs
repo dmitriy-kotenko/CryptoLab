@@ -1,20 +1,20 @@
-﻿using Microsoft.AspNetCore.SignalR;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.SignalR;
+using Org.BouncyCastle.OpenSsl;
 using System;
 using System.Collections.Generic;
-using System.Security.Cryptography;
 using System.IO;
-using Org.BouncyCastle.OpenSsl;
-using System.Text;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace CryptoLab.Hubs
 {
     public class ChatHub : Hub
     {
-        private static readonly Dictionary<string, List<string>> _connectedUsers = new Dictionary<string, List<string>>();
-        private static readonly Dictionary<string, string> _userPublicKeys = new Dictionary<string, string>();
+        private static readonly Dictionary<string, List<string>> ConnectedUsers = new Dictionary<string, List<string>>();
+        private static readonly Dictionary<string, string> UserPublicKeys = new Dictionary<string, string>();
 
         private readonly UserManager<IdentityUser> _userManager;
 
@@ -27,7 +27,7 @@ namespace CryptoLab.Hubs
         {
             string userName = Context.User.Identity.Name;
 
-            _connectedUsers.TryGetValue(userName, out List<string> existingUserConnectionIds);
+            ConnectedUsers.TryGetValue(userName, out List<string> existingUserConnectionIds);
             if (existingUserConnectionIds == null)
             {
                 existingUserConnectionIds = new List<string>();
@@ -35,9 +35,9 @@ namespace CryptoLab.Hubs
             }
 
             existingUserConnectionIds.Add(Context.ConnectionId);
-            _connectedUsers.Add(userName, existingUserConnectionIds);
+            ConnectedUsers.Add(userName, existingUserConnectionIds);
 
-            await Clients.Caller.SendAsync("UserList", _connectedUsers.Keys);
+            await Clients.Caller.SendAsync("UserList", ConnectedUsers.Keys);
 
             await base.OnConnectedAsync();
         }
@@ -46,7 +46,7 @@ namespace CryptoLab.Hubs
         {
             string userName = Context.User.Identity.Name;
 
-            _connectedUsers.TryGetValue(userName, out List<string> existingUserConnectionIds);
+            ConnectedUsers.TryGetValue(userName, out List<string> existingUserConnectionIds);
 
             if (existingUserConnectionIds != null)
             {
@@ -54,7 +54,7 @@ namespace CryptoLab.Hubs
 
                 if (existingUserConnectionIds.Count == 0)
                 {
-                    _connectedUsers.Remove(userName);
+                    ConnectedUsers.Remove(userName);
                     await Clients.Others.SendAsync("ClientDisconnected", userName);
                 }
             }
@@ -64,28 +64,28 @@ namespace CryptoLab.Hubs
 
         public void SetClientPublicKey(string encryptedClientPublicKey)
         {
-            var decryptedClientPublicKeyBytes = Decrypt(encryptedClientPublicKey);
+            byte[] decryptedClientPublicKeyBytes = Decrypt(encryptedClientPublicKey);
 
             string userName = Context.User.Identity.Name;
-            _userPublicKeys[userName] = Encoding.UTF8.GetString(decryptedClientPublicKeyBytes);
+            UserPublicKeys[userName] = Encoding.UTF8.GetString(decryptedClientPublicKeyBytes);
         }
 
         public async Task<object> StartHandshake(string withUserName)
         {
-            if (!_userPublicKeys.ContainsKey(withUserName))
+            if (!UserPublicKeys.ContainsKey(withUserName))
             {
                 throw new ArgumentException("User is not connected.");
             }
 
-            var currentUserName = Context.User.Identity.Name;
-            var currentUserPublicKey = _userPublicKeys[currentUserName];
-            var withUserPublicKey = _userPublicKeys[withUserName];
+            string currentUserName = Context.User.Identity.Name;
+            string currentUserPublicKey = UserPublicKeys[currentUserName];
+            string withUserPublicKey = UserPublicKeys[withUserName];
 
-            IdentityUser user = await _userManager.FindByEmailAsync(withUserName);
             byte[] currentUserEncryptedPublicKey = Encrypt(withUserPublicKey, currentUserPublicKey);
             byte[] currentUserPublicKeySignature = Sign(currentUserEncryptedPublicKey);
 
-            await Clients.User(user.Id).SendAsync(
+            string userId = await GetUserId(withUserName);
+            await Clients.User(userId).SendAsync(
                 "StartHandshakeRequested",
                 currentUserName,
                 Convert.ToBase64String(currentUserEncryptedPublicKey),
@@ -102,31 +102,26 @@ namespace CryptoLab.Hubs
 
         public async Task SubmitAesKey(string toUser, string encryptedAesKey)
         {
-            var aesKeyBytes = Decrypt(encryptedAesKey);
+            byte[] aesKeyBytes = Decrypt(encryptedAesKey);
+            byte[] signature = Sign(aesKeyBytes);
 
-            var signature = Sign(aesKeyBytes);
-
-            IdentityUser user = await _userManager.FindByEmailAsync(toUser);
-            await Clients.User(user.Id).SendAsync("SetAesKey", aesKeyBytes, signature);
+            string userId = await GetUserId(toUser);
+            await Clients.User(userId).SendAsync("SetAesKey", aesKeyBytes, signature);
         }
 
         public async Task SendMessage(string toUser, string message)
         {
-            IdentityUser user = await _userManager.FindByEmailAsync(toUser);
-
-            await Clients.User(user.Id).SendAsync("ReceiveMessage", message);
+            string userId = await GetUserId(toUser);
+            await Clients.User(userId).SendAsync("ReceiveMessage", message);
         }
 
-        private byte[] ExtractKeyBytes(string pemFormattedKey)
+        private async Task<string> GetUserId(string userEmail)
         {
-            var stringReader = new StringReader(pemFormattedKey);
-            var pemReader = new PemReader(stringReader);
-            var pem = pemReader.ReadPemObject();
-
-            return pem.Content;
+            IdentityUser user = await _userManager.FindByEmailAsync(userEmail);
+            return user.Id;
         }
 
-        private byte[] Encrypt(string publicKey, string text)
+        private static byte[] Encrypt(string publicKey, string text)
         {
             var encryptedBytes = new List<byte>();
 
@@ -138,11 +133,11 @@ namespace CryptoLab.Hubs
 
                 int chunkLength = CalculatePkcs1MaxChunkLength(rsa.KeySize);
 
-                var textChunks = SplitString(text, chunkLength);
-                foreach (var textChunk in textChunks)
+                string[] textChunks = SplitString(text, chunkLength);
+                foreach (string textChunk in textChunks)
                 {
-                    var textBytes = Encoding.UTF8.GetBytes(textChunk);
-                    var encryptedTextBytes = rsa.Encrypt(textBytes, RSAEncryptionPadding.Pkcs1);
+                    byte[] textBytes = Encoding.UTF8.GetBytes(textChunk);
+                    byte[] encryptedTextBytes = rsa.Encrypt(textBytes, RSAEncryptionPadding.Pkcs1);
                     encryptedBytes.AddRange(encryptedTextBytes);
                 }
             }
@@ -150,9 +145,9 @@ namespace CryptoLab.Hubs
             return encryptedBytes.ToArray();
         }
 
-        private byte[] Decrypt(string encryptedText)
+        private static byte[] Decrypt(string encryptedText)
         {
-            var encryptedDataBytes = Convert.FromBase64String(encryptedText);
+            byte[] encryptedDataBytes = Convert.FromBase64String(encryptedText);
 
             using (RSA rsa = RSA.Create())
             {
@@ -161,7 +156,7 @@ namespace CryptoLab.Hubs
             }
         }
 
-        private byte[] Sign(byte[] data)
+        private static byte[] Sign(byte[] data)
         {
             byte[] privateKeyBytes = GetServerPrivateKey();
 
@@ -173,25 +168,35 @@ namespace CryptoLab.Hubs
             }
         }
 
-        private byte[] GetServerPrivateKey()
+        private static byte[] GetServerPrivateKey()
         {
             string rsaPrivateKey = File.ReadAllText(@"server_2048_rsa_priv.pem");
             return ExtractKeyBytes(rsaPrivateKey);
         }
 
-        private int CalculatePkcs1MaxChunkLength(int keySize)
+        private static byte[] ExtractKeyBytes(string pemFormattedKey)
+        {
+            var stringReader = new StringReader(pemFormattedKey);
+            var pemReader = new PemReader(stringReader);
+            var pem = pemReader.ReadPemObject();
+
+            return pem.Content;
+        }
+
+        private static int CalculatePkcs1MaxChunkLength(int keySize)
         {
             return keySize / 8 - 11;
         }
 
-        private IEnumerable<string> SplitString(string str, int chunkSize)
+        private static string[] SplitString(string str, int chunkSize)
         {
             return Enumerable.Range(0, (int)Math.Ceiling((double)str.Length / chunkSize))
                 .Select(i => str.Substring(
                     i * chunkSize,
                     (i * chunkSize + chunkSize <= str.Length)
                         ? chunkSize
-                        : str.Length - i * chunkSize));
+                        : str.Length - i * chunkSize))
+                .ToArray();
         }
     }
 }
