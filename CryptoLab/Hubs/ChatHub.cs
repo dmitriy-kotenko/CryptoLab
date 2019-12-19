@@ -87,6 +87,7 @@ namespace CryptoLab.Hubs
 
             await Clients.User(user.Id).SendAsync(
                 "StartHandshakeRequested",
+                currentUserName,
                 Convert.ToBase64String(currentUserEncryptedPublicKey),
                 Convert.ToBase64String(currentUserPublicKeySignature));
 
@@ -102,12 +103,11 @@ namespace CryptoLab.Hubs
         public async Task SubmitAesKey(string toUser, string encryptedAesKey)
         {
             var aesKeyBytes = Decrypt(encryptedAesKey);
-            var aesKey = Convert.ToBase64String(aesKeyBytes);
 
             var signature = Sign(aesKeyBytes);
 
             IdentityUser user = await _userManager.FindByEmailAsync(toUser);
-            await Clients.User(user.Id).SendAsync("SetAesKey", aesKey, signature);
+            await Clients.User(user.Id).SendAsync("SetAesKey", aesKeyBytes, signature);
         }
 
         public async Task SendMessage(string toUser, string message)
