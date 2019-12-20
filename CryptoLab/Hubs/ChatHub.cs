@@ -63,7 +63,7 @@ namespace CryptoLab.Hubs
             UserPublicKeys[UserName] = Encoding.UTF8.GetString(decryptedClientPublicKeyBytes);
         }
 
-        public async Task<object> StartHandshake(string withUserName)
+        public object StartHandshake(string withUserName)
         {
             if (!UserPublicKeys.ContainsKey(withUserName))
             {
@@ -72,16 +72,6 @@ namespace CryptoLab.Hubs
 
             string currentUserPublicKey = UserPublicKeys[UserName];
             string withUserPublicKey = UserPublicKeys[withUserName];
-
-            byte[] currentUserEncryptedPublicKey = _rsaEncryptor.Encrypt(withUserPublicKey, currentUserPublicKey);
-            byte[] currentUserPublicKeySignature = _rsaEncryptor.Sign(currentUserEncryptedPublicKey);
-
-            string userId = await GetUserId(withUserName);
-            await Clients.User(userId).SendAsync(
-                "StartHandshakeRequested",
-                UserName,
-                Convert.ToBase64String(currentUserEncryptedPublicKey),
-                Convert.ToBase64String(currentUserPublicKeySignature));
 
             byte[] withUserEncryptedPublicKeyBytes = _rsaEncryptor.Encrypt(currentUserPublicKey, withUserPublicKey);
             byte[] withUserPublicKeySignature = _rsaEncryptor.Sign(withUserEncryptedPublicKeyBytes);
@@ -99,7 +89,7 @@ namespace CryptoLab.Hubs
             byte[] signature = _rsaEncryptor.Sign(aesKeyBytes);
 
             string userId = await GetUserId(toUser);
-            await Clients.User(userId).SendAsync("SetAesKey", aesKeyBytes, signature);
+            await Clients.User(userId).SendAsync("StartConversation", UserName, aesKeyBytes, signature);
         }
 
         public async Task SendMessage(string toUser, string message)

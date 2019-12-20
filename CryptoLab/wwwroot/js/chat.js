@@ -3,7 +3,6 @@
 var serverPublicKey;
 var selectedUser;
 
-var handshakeCompletedSuccessfully;
 var aesKey;
 
 connection.on('ClientConnected', appendUser);
@@ -22,30 +21,7 @@ connection.on('ReceiveMessage', function (encryptedMessage) {
     appendMessage(selectedUser, message);
 });
 
-connection.on('StartHandshakeRequested', function (withUser, withUserEncryptedPublicKey, signature) {
-    handshakeCompletedSuccessfully = false;
-    console.log('with user\'s encrypted public key: ' + withUserEncryptedPublicKey);
-
-    var verificationResult = verifyWithRSA(serverPublicKey, withUserEncryptedPublicKey, signature);
-    console.log('verificationResult: ' + verificationResult);
-
-    if (!verificationResult) {
-        return;
-    }
-
-    var privateKey = localStorage.getItem('prvKey');
-    var withUserPublicKey = decryptWithRSA(privateKey, withUserEncryptedPublicKey);
-    console.log('with user\'s public key: ' + withUserPublicKey);
-
-    handshakeCompletedSuccessfully = true;
-    $('#' + $.escapeSelector(withUser)).tab('show');
-});
-
-connection.on('SetAesKey', function (encryptedAesKey, signature) {
-    if (!handshakeCompletedSuccessfully) {
-        return;
-    }
-
+connection.on('StartConversation', function (withUser, encryptedAesKey, signature) {
     console.log('Received AES encrypted key: ' + encryptedAesKey);
 
     var aesKeyVerificationResult = verifyWithRSA(serverPublicKey, encryptedAesKey, signature);
@@ -60,6 +36,7 @@ connection.on('SetAesKey', function (encryptedAesKey, signature) {
     console.log('Received AES key: ');
     console.log(aesKey);
 
+    $('#' + $.escapeSelector(withUser)).tab('show');
     startConversation();
 });
 
