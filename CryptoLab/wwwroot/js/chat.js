@@ -38,7 +38,7 @@ connection.on('StartHandshakeRequested', function (withUser, withUserEncryptedPu
     console.log('with user\'s public key: ' + withUserPublicKey);
 
     handshakeCompletedSuccessfully = true;
-    selectedUser = withUser;
+    $('#' + $.escapeSelector(withUser)).tab('show');
 });
 
 connection.on('SetAesKey', function (encryptedAesKey, signature) {
@@ -85,10 +85,15 @@ function appendUser(userEmail) {
     userItem.textContent = userEmail;
     userItem.href = '#';
     userItem.id = userEmail;
-    userItem.className = 'list-group-item list-group-item-action list-group-item-light';
+    userItem.className = 'list-group-item list-group-item-action';
     userItem.setAttribute('data-toggle', 'tab');
     userItem.setAttribute('role', 'tab');
     userItem.onclick = onUserClick;
+
+    if (selectedUser) {
+        userItem.classList.add('disabled');
+    }
+
     document.getElementById('usersList').appendChild(userItem);
 }
 
@@ -106,6 +111,7 @@ function onUserClick(e) {
 function onUserSelected(e) {
     selectedUser = e.target.id;
     document.getElementById('startConversation').disabled = false;
+    $('.list-group-item').addClass('disabled');
 }
 
 function startHandshake() {
