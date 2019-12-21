@@ -48,6 +48,8 @@ namespace CryptoLab.Hubs
                 if (existingUserConnectionIds.Count == 0)
                 {
                     ConnectedUsers.Remove(UserName);
+                    UserPublicKeys.Remove(UserName);
+
                     await Clients.Others.SendAsync("ClientDisconnected", UserName);
                 }
             }

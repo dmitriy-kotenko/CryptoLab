@@ -40,45 +40,7 @@ connection.on('StartConversation', function (withUser, encryptedAesKey, signatur
     startConversation();
 });
 
-
-connection.start().then(function () {
-    sendPublicKey();
-});
-
-$('#sendButton').click(e => {
-    e.preventDefault();
-
-    var messageInput = $('#messageInput');
-    var message = messageInput.val();
-    messageInput.val('');
-
-    var encryptedMessage = encryptMessage(message);
-    connection.invoke('SendMessage', selectedUser, encryptedMessage);
-    appendMessage('You', message);
-});
-
-function appendUser(userEmail) {
-    var userItem = document.createElement('a');
-    userItem.textContent = userEmail;
-    userItem.href = '#';
-    userItem.id = userEmail;
-    userItem.className = 'list-group-item list-group-item-action';
-    userItem.setAttribute('data-toggle', 'tab');
-    userItem.setAttribute('role', 'tab');
-    userItem.onclick = onUserClick;
-
-    if (selectedUser) {
-        userItem.classList.add('disabled');
-    }
-
-    document.getElementById('usersList').appendChild(userItem);
-}
-
-function appendMessage(user, message) {
-    var element = document.createElement('p');
-    element.textContent = user + ': ' + message;
-    document.getElementById('messagesList').appendChild(element);
-}
+connection.start().then(sendPublicKey);
 
 function onUserClick(e) {
     e.preventDefault();
@@ -89,6 +51,27 @@ function onUserSelected(e) {
     selectedUser = e.target.id;
     document.getElementById('startConversation').disabled = false;
     $('.list-group-item').addClass('disabled');
+}
+
+function startConversation() {
+    $('#startConversation').prop('disabled', true);
+    $('#conversation').show();
+}
+
+function sendPublicKey() {
+    var clientPublicKey = localStorage.getItem('pubKey');
+    if (clientPublicKey === null) {
+        generateRSAKeyAndStore();
+        console.log('RSA key-pair generated and stored');
+
+        clientPublicKey = localStorage.getItem('pubKey');
+    }
+
+    console.log('clientPublicKey: ' + clientPublicKey);
+    var encryptedClientPublicKey = encryptWithRSA(serverPublicKey, clientPublicKey);
+    console.log('encryptedClientPublicKey: ' + encryptedClientPublicKey);
+
+    connection.invoke('SetClientPublicKey', encryptedClientPublicKey);
 }
 
 function startHandshake() {
@@ -121,11 +104,6 @@ function startHandshake() {
     });
 }
 
-function startConversation() {
-    $('#startConversation').prop('disabled', true);
-    $('#conversation').show();
-}
-
 function generateAesKey() {
     var key = new Uint8Array(32);
     crypto.getRandomValues(key);
@@ -153,22 +131,6 @@ function decryptMessage(encryptedMessage) {
     return aesjs.utils.utf8.fromBytes(decryptedMessageBytes);
 }
 
-function sendPublicKey() {
-    var clientPublicKey = localStorage.getItem('pubKey');
-    if (clientPublicKey === null) {
-        generateRSAKeyAndStore();
-        console.log('RSA key-pair generated and stored');
-
-        clientPublicKey = localStorage.getItem('pubKey');
-    }
-
-    console.log('clientPublicKey: ' + clientPublicKey);
-    var encryptedClientPublicKey = encryptWithRSA(serverPublicKey, clientPublicKey);
-    console.log('encryptedClientPublicKey: ' + encryptedClientPublicKey);
-
-    connection.invoke('SetClientPublicKey', encryptedClientPublicKey);
-}
-
 function byteArrayToBase64(byteArray) {
     var binary = '';
     var bytes = new Uint8Array(byteArray);
@@ -189,12 +151,57 @@ function base64ToByteArray(base64) {
     return bytes.buffer;
 }
 
-$('#startConversation').click(startHandshake);
+function appendUser(userEmail) {
+    var userItem = document.createElement('a');
+    userItem.textContent = userEmail;
+    userItem.href = '#';
+    userItem.id = userEmail;
+    userItem.className = 'list-group-item list-group-item-action';
+    userItem.setAttribute('data-toggle', 'tab');
+    userItem.setAttribute('role', 'tab');
+    userItem.onclick = onUserClick;
+
+    if (selectedUser) {
+        userItem.classList.add('disabled');
+    }
+
+    document.getElementById('usersList').appendChild(userItem);
+}
+
+function appendMessage(user, message) {
+    var element = document.createElement('p');
+    element.textContent = user + ': ' + message;
+    document.getElementById('messagesList').appendChild(element);
+}
 
 $(document).ready(function () {
-    $(document).on('shown.bs.tab', 'a[data-toggle="tab"]', onUserSelected);
-
     $.get('server_2048_pub.pem', function (data) {
         serverPublicKey = data;
+    });
+
+    $(document).on('shown.bs.tab', 'a[data-toggle="tab"]', onUserSelected);
+
+    $('#startConversation').click(startHandshake);
+
+    $("#messageInput").keyup(function (event) {
+        if (event.keyCode === 13) {
+            $("#sendButton").click();
+        }
+    });
+
+    $('#sendButton').click(e => {
+        e.preventDefault();
+
+        var messageInput = $('#messageInput');
+        var message = messageInput.val();
+        messageInput.val('');
+
+        if (!message) {
+            return;
+        }
+
+        var encryptedMessage = encryptMessage(message);
+        connection.invoke('SendMessage', selectedUser, encryptedMessage);
+        appendMessage('You', message);
     });
 });

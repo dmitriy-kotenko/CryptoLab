@@ -1,0 +1,3 @@
+Server-side keys generation:
+	Private key: 			openssl genrsa -out server_2048_rsa_priv.pem 2048 
+	Extract public key: 	openssl rsa -pubout -in server_2048_rsa_priv.pem -out server_2048_pub.pem

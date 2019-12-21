@@ -1,14 +1,16 @@
-﻿using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Identity;
+﻿using CryptoLab.Data;
+using CryptoLab.Encryption;
+using CryptoLab.Hashing;
+using CryptoLab.Hubs;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using CryptoLab.Data;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using CryptoLab.Hubs;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
-using CryptoLab.Encryption;
 
 namespace CryptoLab
 {
@@ -31,9 +33,16 @@ namespace CryptoLab
 
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")));
+
             services
                 .AddDefaultIdentity<IdentityUser>()
                 .AddEntityFrameworkStores<ApplicationDbContext>();
+
+            services.Replace(new ServiceDescriptor(
+               serviceType: typeof(IPasswordHasher<IdentityUser>),
+               implementationType: typeof(SHAPasswordHasher<IdentityUser>),
+               ServiceLifetime.Scoped));
+
 
             services.AddControllersWithViews();
             services.AddSignalR();
@@ -69,10 +78,6 @@ namespace CryptoLab
                 endpoints.MapRazorPages();
                 endpoints.MapHub<ChatHub>("/chatHub");
             });
-
-            // Server-side generation:
-            // openssl genrsa -out server_2048_rsa_priv.pem 2048 
-            // openssl rsa -pubout -in server_4096_rsa_priv.pem -out server_4096_pub.pem
         }
     }
 }

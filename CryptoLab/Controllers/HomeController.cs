@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-using Microsoft.AspNetCore.Mvc;
-using CryptoLab.Models;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 
 namespace CryptoLab.Controllers
@@ -11,12 +9,6 @@ namespace CryptoLab.Controllers
         public IActionResult Index()
         {
             return View();
-        }
-
-        [AllowAnonymous]
-        public IActionResult Error()
-        {
-            return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
         }
     }
 }
